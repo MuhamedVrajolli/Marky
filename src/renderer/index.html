@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      script-src: no 'unsafe-inline', so inline scripts / onerror= handlers inside a markdown
+      document can never run. 'unsafe-eval' is needed by Lute (Vditor's markdown engine).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: mdfile: https: http:; media-src 'self' mdfile: https:; font-src 'self' data:; connect-src 'self' ws: http://localhost:*; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Mark</title>
+  </head>
+  <body>
+    <div id="app">
+      <nav id="tabbar">
+        <div id="tabs" role="tablist"></div>
+        <button id="new-tab" type="button" title="New (Ctrl+N)" aria-label="New tab">+</button>
+      </nav>
+      <main id="editors"></main>
+    </div>
+    <!--
+      Vditor's icon sprite. Vditor would otherwise inject it as an inline script, which the CSP
+      blocks; editor.ts keeps a #vditorIconScript marker so Vditor skips that.
+    -->
+    <script src="./vditor/dist/js/icons/ant.js"></script>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

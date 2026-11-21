@@ -1,0 +1,31 @@
+{
+  "name": "mark",
+  "productName": "Mark",
+  "version": "0.1.0",
+  "description": "A minimal Typora-style markdown editor",
+  "author": "Mark",
+  "license": "MIT",
+  "private": true,
+  "main": "./out/main/index.js",
+  "scripts": {
+    "postinstall": "node scripts/copy-vditor-assets.mjs",
+    "predev": "node scripts/copy-vditor-assets.mjs",
+    "dev": "electron-vite dev",
+    "prebuild": "node scripts/copy-vditor-assets.mjs",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit --composite false -p tsconfig.node.json && tsc --noEmit --composite false -p tsconfig.web.json",
+    "dist:win": "npm run build && electron-builder --win"
+  },
+  "devDependencies": {
+    "@types/diff-match-patch": "^1.0.36",
+    "@types/node": "^26.6.6",
+    "diff-match-patch": "^1.0.5",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "typescript": "^7.0.2",
+    "vditor": "4.0.1",
+    "vite": "^8.3.8"
+  }
+}

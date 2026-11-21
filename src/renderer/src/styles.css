@@ -1,0 +1,399 @@
+/* ------------------------------------------------------------------ theme */
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #6e7781;
+  --chrome-bg: #f3f4f6;
+  --chrome-hover: #e7e9ec;
+  --border: #dfe2e6;
+  --accent: #3d7eff;
+  --dialog-bg: #ffffff;
+  --input-bg: #ffffff;
+  --shadow: 0 12px 40px rgb(0 0 0 / 0.18);
+  --scrollbar: rgb(0 0 0 / 0.22);
+
+  /* Set from settings (see settings.ts). */
+  --content-width: 860px;
+  --font-size: 16px;
+  --line-height: 1.7;
+  --font-family: system-ui, 'Segoe UI', sans-serif;
+  --code-font: 'Cascadia Code', Consolas, monospace;
+
+  --tabbar-height: 36px;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #1e1f22;
+  --fg: #d7dadf;
+  --muted: #8b929b;
+  --chrome-bg: #18191b;
+  --chrome-hover: #26282b;
+  --border: #2d2f33;
+  --accent: #5b93ff;
+  --dialog-bg: #26282c;
+  --input-bg: #1e1f22;
+  --shadow: 0 12px 40px rgb(0 0 0 / 0.5);
+  --scrollbar: rgb(255 255 255 / 0.2);
+}
+
+/* ------------------------------------------------------------------ layout */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, 'Segoe UI', sans-serif;
+  font-size: 13px;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+#editors {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.pane,
+.pane textarea.vditor-sv {
+  scrollbar-color: var(--scrollbar) transparent;
+}
+
+.pane {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.pane[hidden] {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ tab bar */
+#tabbar {
+  display: flex;
+  flex: none;
+  height: var(--tabbar-height);
+  background: var(--chrome-bg);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+#tabs {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+#tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-width: 90px;
+  max-width: 220px;
+  padding: 0 6px 0 14px;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  cursor: default;
+}
+
+.tab:hover {
+  background: var(--chrome-hover);
+}
+
+.tab.active {
+  background: var(--bg);
+  color: var(--fg);
+  margin-bottom: -1px; /* covers the tab bar's bottom border */
+}
+
+.tab.active::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: var(--accent);
+}
+
+.tab-title {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tab-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.tab-close > span {
+  grid-area: 1 / 1;
+}
+
+.tab-close:hover {
+  background: var(--chrome-hover);
+}
+
+.tab.active .tab-close:hover {
+  background: var(--chrome-bg);
+}
+
+/* Clean tab: show ✕ on hover/active. Dirty tab: show ● until hovered. */
+.tab-close .dot,
+.tab-close .x {
+  visibility: hidden;
+}
+
+.tab:hover .tab-close .x,
+.tab.active:not(.dirty) .tab-close .x {
+  visibility: visible;
+}
+
+.tab.dirty:not(:hover) .tab-close .dot {
+  visibility: visible;
+  font-size: 10px;
+}
+
+#new-tab {
+  flex: none;
+  width: var(--tabbar-height);
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+}
+
+#new-tab:hover {
+  background: var(--chrome-hover);
+  color: var(--fg);
+}
+
+/* ------------------------------------------------------------------ editor (Vditor overrides) */
+.pane .vditor {
+  border: 0;
+  background: transparent;
+  --panel-background-color: var(--bg);
+  --textarea-background-color: var(--bg);
+}
+
+.pane .vditor-toolbar {
+  display: none !important;
+}
+
+.pane .vditor-content,
+.pane .vditor-ir,
+.pane .vditor-sv {
+  background: transparent;
+}
+
+/*
+ * The text column. Vditor sets an inline padding on this element; the setting-driven
+ * --content-width wins here. Percentages in padding are relative to the parent's width.
+ */
+.pane .vditor-ir pre.vditor-reset,
+.pane textarea.vditor-sv {
+  box-sizing: border-box;
+  min-height: calc(100vh - var(--tabbar-height));
+  padding: 28px max(40px, calc((100% - var(--content-width)) / 2)) 35vh !important;
+  background: transparent !important;
+  color: var(--fg);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+}
+
+.pane .vditor-ir pre.vditor-reset {
+  font-family: var(--font-family);
+}
+
+.pane .vditor-reset code,
+.pane .vditor-reset pre > code,
+.pane .vditor-reset .vditor-ir__marker--pre code,
+.pane textarea.vditor-sv {
+  font-family: var(--code-font) !important;
+}
+
+/* Source mode: a plain text area that fills the pane and scrolls itself. */
+.pane.source-mode {
+  overflow: hidden;
+}
+
+.pane.source-mode .vditor,
+.pane.source-mode .vditor-content {
+  height: 100%;
+}
+
+.pane textarea.vditor-sv {
+  display: block;
+  width: 100%;
+  height: calc(100vh - var(--tabbar-height)) !important;
+  padding-bottom: 35vh !important;
+  resize: none;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* Vditor's own tooltips/hints follow the theme. */
+:root[data-theme='dark'] .vditor-hint,
+:root[data-theme='dark'] .vditor-tip {
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ settings dialog */
+#settings {
+  width: min(560px, calc(100vw - 40px));
+  max-height: calc(100vh - 60px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--dialog-bg);
+  color: var(--fg);
+  box-shadow: var(--shadow);
+}
+
+#settings::backdrop {
+  background: rgb(0 0 0 / 0.3);
+}
+
+#settings form {
+  display: flex;
+  flex-direction: column;
+}
+
+#settings header,
+#settings footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+}
+
+#settings header {
+  border-bottom: 1px solid var(--border);
+}
+
+#settings footer {
+  border-top: 1px solid var(--border);
+}
+
+#settings h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+#settings section {
+  padding: 6px 20px 10px;
+}
+
+#settings h3 {
+  margin: 10px 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+#settings .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 34px;
+}
+
+#settings .row[hidden] {
+  display: none;
+}
+
+#settings .row small {
+  color: var(--muted);
+}
+
+#settings .ctl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#settings output {
+  min-width: 52px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+#settings input[type='range'] {
+  width: 180px;
+  accent-color: var(--accent);
+}
+
+#settings input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+#settings select,
+#settings input[type='text'] {
+  width: 240px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+#settings button {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+
+#settings button:hover {
+  background: var(--chrome-hover);
+}
+
+#settings button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+#settings button.icon {
+  padding: 2px 8px;
+  border: 0;
+}

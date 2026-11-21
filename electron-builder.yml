@@ -1,0 +1,39 @@
+appId: local.mark.editor
+productName: Mark
+copyright: MIT License
+
+directories:
+  output: dist
+  buildResources: build
+
+# Everything the app needs is bundled into out/ by electron-vite (including Vditor's assets).
+files:
+  - out/**
+  - package.json
+  - '!out/.tsc/**'
+  - '!**/*.map'
+
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Mark
+  artifactName: ${productName}-Setup-${version}.${ext}
+  deleteAppDataOnUninstall: false
+
+# Registers Mark as an editor for markdown files ("Open with" list; Windows asks once
+# before making it the default).
+fileAssociations:
+  - ext: [md, markdown]
+    name: Markdown
+    description: Markdown document
+    role: Editor
