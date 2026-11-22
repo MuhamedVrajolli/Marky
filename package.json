@@ -5,6 +5,14 @@
   "description": "A minimal Typora-style markdown editor",
   "author": "Muhamed Vrajolli",
   "license": "MIT",
+  "homepage": "https://github.com/MuhamedVrajolli/Marky#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MuhamedVrajolli/Marky.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MuhamedVrajolli/Marky/issues"
+  },
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {

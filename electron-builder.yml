@@ -1,6 +1,6 @@
 appId: local.marky.editor
 productName: Marky
-copyright: MIT License
+copyright: Copyright © 2026 Muhamed Vrajolli
 
 directories:
   output: dist
@@ -14,6 +14,9 @@ files:
   - '!**/*.map'
 
 npmRebuild: false
+
+# No auto-updates. Without this, the GitHub repository in package.json adds an unused app-update.yml.
+publish: null
 
 win:
   # Generated from build/icon.svg with `npm run icon`.
