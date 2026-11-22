@@ -30,11 +30,45 @@ export function normalize(editor: Vditor, md: string): string | null {
   }
 }
 
+/**
+ * Fixes quirks in markdown the editor produces: Lute writes task items as "- [ ]  text" (two
+ * spaces) and checked ones as "[X]", and sometimes leaves two blank lines (e.g. before a table)
+ * where one means the same. Lines inside fenced code are left alone.
+ */
+export function tidyMarkdown(md: string): string {
+  let fence = ''
+  let blank = false
+  const out: string[] = []
+  for (const line of md.split('\n')) {
+    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1]
+    if (marker && (!fence || marker[0] === fence[0])) fence = fence ? '' : marker
+    else if (!fence) {
+      if (!line.trim()) {
+        if (blank) continue
+        blank = true
+        out.push(line)
+        continue
+      }
+      out.push(
+        line.replace(/^(\s*(?:[-*+]|\d+[.)]) \[)([ xX])\] +(?=\S)/, (_, start: string, mark: string) =>
+          `${start}${mark === ' ' ? ' ' : 'x'}] `
+        )
+      )
+      blank = false
+      continue
+    }
+    out.push(line)
+    blank = false
+  }
+  return out.join('\n')
+}
+
 /** Ignore differences that Lute itself doesn't round-trip stably. */
 function canonical(md: string): string {
   return md
     .replaceAll(String.fromCharCode(160), ' ') // non-breaking spaces
     .replace(/[ \t]+$/gm, '')
+    .replace(/^(\s*(?:[-*+]|\d+[.)]) \[)X\]/gm, '$1x]')
     .replace(/^(\s*(?:[-*+]|\d+[.)]) \[[ xX]\]) +/gm, '$1 ')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
@@ -135,6 +169,9 @@ function mergeChars(original: string, base: string, current: string): string {
   return out
 }
 
+/** A row of a pipe table as the editor writes it (it always uses a leading pipe). */
+const isTableLine = (line: string | undefined): boolean => line !== undefined && /^\s*\|/.test(line)
+
 /** Offset of the start of each line, plus one entry past the end. */
 function lineStarts(lines: string[]): number[] {
   const starts = [0]
@@ -162,22 +199,29 @@ export function transplant(original: string, base: string, current: string): str
     e1: number
     offBefore: number
     offAfter: number
+    /** Take the editor's text for the whole region instead of merging characters. */
+    replace: boolean
   }
   const regions: Region[] = []
   let offset = 0 // current index − base index, outside hunks
   for (const h of lineHunks(B, C)) {
     let e0 = h.b0
     let e1 = h.b1
-    while (e0 > 0 && !bo.has(e0 - 1)) e0--
-    while (e1 < B.length && !bo.has(e1)) e1++
+    // Tables are edited as a unit: the editor re-pads every row when a column changes width, and
+    // mixing those rows character by character with the original produced broken delimiter rows.
+    const table =
+      B.slice(Math.max(0, h.b0 - 1), h.b1 + 1).some(isTableLine) || C.slice(h.c0, h.c1).some(isTableLine)
+    while (e0 > 0 && (!bo.has(e0 - 1) || (table && isTableLine(B[e0 - 1])))) e0--
+    while (e1 < B.length && (!bo.has(e1) || (table && isTableLine(B[e1])))) e1++
     const offBefore = offset
     offset += h.c1 - h.c0 - (h.b1 - h.b0)
     const prev = regions.at(-1)
     if (prev && e0 <= prev.e1) {
       prev.e1 = Math.max(prev.e1, e1)
       prev.offAfter = offset
+      prev.replace ||= table
     } else {
-      regions.push({ e0, e1, offBefore, offAfter: offset })
+      regions.push({ e0, e1, offBefore, offAfter: offset, replace: table })
     }
   }
 
@@ -199,7 +243,9 @@ export function transplant(original: string, base: string, current: string): str
     const [ba, bz] = span(sB, base, r.e0, r.e1)
     const [ca, cz] = span(sC, current, r.e0 + r.offBefore, r.e1 + r.offAfter)
     out += original.slice(oPos, oa)
-    out += mergeChars(original.slice(oa, oz), base.slice(ba, bz), current.slice(ca, cz))
+    out += r.replace
+      ? current.slice(ca, cz)
+      : mergeChars(original.slice(oa, oz), base.slice(ba, bz), current.slice(ca, cz))
     oPos = oz
   }
   return out + original.slice(oPos)
@@ -211,9 +257,9 @@ export function transplant(original: string, base: string, current: string): str
  */
 export function mergeEdits(editor: Vditor, original: string, base: string, current: string): string | null {
   if (current === base) return original
-  if (original === base) return current
+  if (original === base) return tidyMarkdown(current)
   try {
-    const merged = transplant(original, base, current)
+    const merged = transplant(original, tidyMarkdown(base), tidyMarkdown(current))
     // Safety net: the merged file must render exactly like what the user sees in the editor.
     const check = normalize(editor, merged)
     return check !== null && canonical(check) === canonical(current) ? merged : null

@@ -1,6 +1,8 @@
 import './styles.css'
 import type { MenuAction } from '../../shared/types'
-import { redo } from './editor'
+import { installCodeHighlighting, scheduleCodeHighlight } from './codeHighlight'
+import { caretInTable, undoStep } from './editor'
+import { FindBar } from './find'
 import { applySettingsToDom, SettingsDialog } from './settings'
 import { TabManager } from './tabs'
 
@@ -28,10 +30,21 @@ async function boot(): Promise<void> {
     tabs.setDark(dark)
   })
 
-  if (startup.files.length) tabs.openFiles(startup.files, startup.active)
+  const find = new FindBar(document.getElementById('editors')!, () => tabs.activeView())
+  tabs.onActiveChange = () => {
+    find.refresh()
+    scheduleCodeHighlight()
+  }
+  // Keep find results current as the document changes.
+  document.getElementById('editors')!.addEventListener('input', () => find.refresh(), true)
+  installCodeHighlighting()
+
+  if (startup.tabs.length) tabs.restore(startup.tabs, startup.active)
   else tabs.newTab()
 
+  let settings = startup.settings
   const settingsDialog = new SettingsDialog(startup.settings, (s) => {
+    settings = s
     applySettingsToDom(s)
     tabs.applySettings(s)
   })
@@ -59,6 +72,14 @@ async function boot(): Promise<void> {
         return tabs.cycle(1)
       case 'prevTab':
         return tabs.cycle(-1)
+      case 'find':
+        return find.open(false)
+      case 'replace':
+        return find.open(true)
+      case 'findNext':
+        return find.next()
+      case 'findPrev':
+        return find.previous()
     }
   }
 
@@ -66,8 +87,12 @@ async function boot(): Promise<void> {
   mark.onMenu((action) => void run(action))
   mark.onOpenFiles((files) => tabs.openFiles(files))
   mark.onRequestClose(async () => {
-    if (await tabs.confirmCloseAll()) {
-      tabs.saveSessionNow()
+    if (settings.hotExit) {
+      // Like Sublime Text: close without asking; tabs and unsaved changes come back next time.
+      await tabs.keepAllForNextTime()
+      mark.closeConfirmed()
+    } else if (await tabs.confirmCloseAll()) {
+      await tabs.discardBackups()
       mark.closeConfirmed()
     }
   })
@@ -81,6 +106,18 @@ async function boot(): Promise<void> {
       // (e.g. @ { [ ), so keep Vditor from treating it as a shortcut like Ctrl+Alt+2 = heading.
       if (e.getModifierState('AltGraph')) {
         e.stopPropagation()
+        return
+      }
+      if (e.key === 'F3' && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        void run(e.shiftKey ? 'findPrev' : 'findNext')
+        return
+      }
+      if (e.key === 'Escape' && find.isOpen && !(e.target as HTMLElement).closest?.('#settings')) {
+        e.preventDefault()
+        e.stopPropagation()
+        find.close()
         return
       }
       // Vditor's hidden Ctrl+Alt+7/8/9 switch its internal edit mode behind the app's back.
@@ -111,6 +148,16 @@ async function boot(): Promise<void> {
         case 'Comma':
           action = 'settings'
           break
+        case 'KeyF':
+          // Ctrl+Shift+F is Vditor's "insert table row above".
+          if (e.shiftKey) handled = false
+          else action = 'find'
+          break
+        case 'KeyH':
+        case 'KeyR':
+          if (e.shiftKey) handled = false
+          else action = 'replace'
+          break
         case 'Slash':
           action = 'toggleSource'
           break
@@ -124,19 +171,27 @@ async function boot(): Promise<void> {
           action = 'prevTab'
           break
         case 'KeyZ':
-          if (e.shiftKey) {
-            const editor = tabs.currentEditor()
-            if (editor) redo(editor)
+        case 'KeyY': {
+          // Undo/redo in the editor (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z); elsewhere (settings fields)
+          // leave the browser's native undo alone.
+          const editor = tabs.currentEditor()
+          const inEditor = (e.target as HTMLElement).closest?.('.pane')
+          if (editor && inEditor) {
+            undoStep(editor, e.code === 'KeyZ' && !e.shiftKey ? 'undo' : 'redo')
+            tabs.refreshDirty()
           } else handled = false
           break
+        }
         case 'Equal':
         case 'NumpadAdd':
-          if (e.shiftKey || e.code === 'NumpadAdd') mark.zoom(1)
+          // In a table, Ctrl+Shift+= is Vditor's "add column".
+          if ((e.shiftKey && !caretInTable()) || e.code === 'NumpadAdd') mark.zoom(1)
           else handled = false
           break
         case 'Minus':
         case 'NumpadSubtract':
-          if (e.shiftKey || e.code === 'NumpadSubtract') mark.zoom(-1)
+          // In a table, Ctrl+Shift+- is Vditor's "delete column".
+          if ((e.shiftKey && !caretInTable()) || e.code === 'NumpadSubtract') mark.zoom(-1)
           else handled = false
           break
         case 'Digit0':

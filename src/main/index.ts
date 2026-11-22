@@ -14,10 +14,21 @@ import {
 } from 'electron'
 import { extname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { ConfirmOptions, OpenedFile, Settings, Startup, TabsSession } from '../shared/types'
-import { isFile, isKnown, pathsFromArgv, readDocs, registerFileHandlers } from './files'
+import type { ConfirmOptions, OpenedFile, RestoredTab, SessionTab, Settings, Startup, TabBackup, TabsSession } from '../shared/types'
+import { allowPath, isFile, isKnown, pathsFromArgv, readDoc, readDocs, registerFileHandlers } from './files'
 import { buildMenu } from './menu'
-import { getSession, getSettings, updateSession, updateSettings, type WindowState } from './store'
+import {
+  deleteBackup,
+  getSession,
+  getSettings,
+  isBackupId,
+  pruneBackups,
+  readBackup,
+  updateSession,
+  updateSettings,
+  writeBackup,
+  type WindowState
+} from './store'
 
 // Serves local images referenced by relative paths in a document, e.g. ![](./img/a.png).
 // Each tab's Vditor `linkBase` points at mdfile://local/<folder of the document>/.
@@ -28,7 +39,7 @@ let mainWindow: BrowserWindow | null = null
 const getWindow = (): BrowserWindow | null => mainWindow
 
 // Lets a separate profile run side by side (e.g. for testing). Must happen before the lock.
-if (process.env['MARK_USER_DATA']) app.setPath('userData', resolve(process.env['MARK_USER_DATA']))
+if (process.env['MARKY_USER_DATA']) app.setPath('userData', resolve(process.env['MARKY_USER_DATA']))
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
@@ -56,26 +67,40 @@ function start(): void {
 
   ipcMain.handle('app:startup', async (): Promise<Startup> => {
     const settings = getSettings()
-    const files: OpenedFile[] = []
+    const tabs: RestoredTab[] = []
     let active = 0
-    if (settings.restoreTabs) {
+    if (settings.hotExit || settings.restoreTabs) {
       const sess = getSession()
-      const activePath = sess.files[sess.active]
-      files.push(...(await readDocs(sess.files.filter(isFile))))
-      active = Math.max(0, files.findIndex((f) => f.path === activePath))
+      for (const [i, t] of sess.tabs.entries()) {
+        // Unsaved changes are only kept with "hot exit" on.
+        const backup = settings.hotExit && t.backupId ? readBackup(t.backupId) : null
+        let file: OpenedFile | null = null
+        if (t.path) {
+          if (isFile(t.path)) file = await readDoc(t.path).catch(() => null)
+          if (!file && !backup) continue // file is gone and there's nothing unsaved: drop the tab
+          if (!file) allowPath(t.path) // deleted on disk but has unsaved changes: saving recreates it
+        } else if (!backup) {
+          continue // untitled tab with nothing in it
+        }
+        if (i === sess.active) active = tabs.length
+        tabs.push({ path: file?.path ?? t.path, file, backup, backupId: t.backupId, untitledIndex: t.untitledIndex })
+      }
     }
+    // Backups no restored tab refers to are stale (or hot exit was turned off).
+    pruneBackups(new Set(tabs.filter((t) => t.backup).map((t) => t.backupId)))
+
     const fromArgv = await readDocs(pendingArgvPaths)
     pendingArgvPaths = []
     for (const f of fromArgv) {
-      const existing = files.findIndex((o) => o.path.toLowerCase() === f.path.toLowerCase())
+      const existing = tabs.findIndex((o) => o.path?.toLowerCase() === f.path.toLowerCase())
       if (existing >= 0) {
         active = existing
       } else {
-        files.push(f)
-        active = files.length - 1
+        tabs.push({ path: f.path, file: f, backup: null, backupId: '', untitledIndex: 0 })
+        active = tabs.length - 1
       }
     }
-    return { settings, dark: nativeTheme.shouldUseDarkColors, files, active }
+    return { settings, dark: nativeTheme.shouldUseDarkColors, tabs, active }
   })
 
   // Fires when the Theme setting changes and when Windows switches light/dark (for "system").
@@ -91,11 +116,19 @@ function start(): void {
   })
 
   ipcMain.on('session:save', (_e, s: TabsSession) => {
-    if (!s || !Array.isArray(s.files)) return
+    if (!s || !Array.isArray(s.tabs)) return
     // Only remember files the user actually opened in this session.
-    const files = s.files.filter(isKnown)
-    updateSession({ files, active: Math.min(Math.max(0, Number(s.active) || 0), Math.max(0, files.length - 1)) })
+    const tabs: SessionTab[] = s.tabs.flatMap((t) =>
+      t && (t.path === null || isKnown(t.path))
+        ? [{ path: t.path, backupId: isBackupId(t.backupId) ? t.backupId : '', untitledIndex: Number(t.untitledIndex) || 0 }]
+        : []
+    )
+    updateSession({ tabs, active: Math.min(Math.max(0, Number(s.active) || 0), Math.max(0, tabs.length - 1)) })
   })
+
+  // Unsaved changes kept between runs ("hot exit"), in <userData>/backups.
+  ipcMain.handle('backup:write', (_e, id: string, backup: TabBackup) => writeBackup(id, backup))
+  ipcMain.handle('backup:delete', (_e, id: string) => deleteBackup(id))
 
   ipcMain.handle('dialog:confirm', async (_e, o: ConfirmOptions) => {
     const opts: Electron.MessageBoxOptions = {
@@ -162,7 +195,9 @@ function createWindow(): BrowserWindow {
     minWidth: 480,
     minHeight: 320,
     show: false,
-    title: 'Mark',
+    title: 'Marky',
+    // The installed app takes its icon from Marky.exe; when running from source, set it explicitly.
+    icon: app.isPackaged ? undefined : join(app.getAppPath(), 'build/icon.ico'),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1e1f22' : '#ffffff',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

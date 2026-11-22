@@ -1,9 +1,9 @@
 {
-  "name": "mark",
-  "productName": "Mark",
-  "version": "0.1.0",
+  "name": "marky",
+  "productName": "Marky",
+  "version": "0.5.0",
   "description": "A minimal Typora-style markdown editor",
-  "author": "Mark",
+  "author": "Muhamed Vrajolli",
   "license": "MIT",
   "private": true,
   "main": "./out/main/index.js",
@@ -15,7 +15,8 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit --composite false -p tsconfig.node.json && tsc --noEmit --composite false -p tsconfig.web.json",
-    "dist:win": "npm run build && electron-builder --win"
+    "dist:win": "npm run build && electron-builder --win",
+    "icon": "electron scripts/make-icon.cjs"
   },
   "devDependencies": {
     "@types/diff-match-patch": "^1.0.36",

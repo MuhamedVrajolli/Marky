@@ -41,7 +41,18 @@ export function buildMenu(getWindow: () => BrowserWindow | null): Menu {
     {
       label: '&Edit',
       // Undo/redo are intentionally absent: Vditor keeps its own undo stack (Ctrl+Z / Ctrl+Y).
-      submenu: [{ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { type: 'separator' }, { role: 'selectAll' }]
+      submenu: [
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { type: 'separator' },
+        { role: 'selectAll' },
+        { type: 'separator' },
+        item('Find…', 'find', 'CmdOrCtrl+F'),
+        item('Replace…', 'replace', 'CmdOrCtrl+H'),
+        item('Find Next', 'findNext', 'F3'),
+        item('Find Previous', 'findPrev', 'Shift+F3')
+      ]
     },
     {
       label: '&View',

@@ -12,9 +12,11 @@
   --input-bg: #ffffff;
   --shadow: 0 12px 40px rgb(0 0 0 / 0.18);
   --scrollbar: rgb(0 0 0 / 0.22);
+  --code-bg: #f2f4f7;
+  --code-border: #e1e5ea;
 
   /* Set from settings (see settings.ts). */
-  --content-width: 860px;
+  --side-padding: max(40px, calc((100% - 860px) / 2));
   --font-size: 16px;
   --line-height: 1.7;
   --font-family: system-ui, 'Segoe UI', sans-serif;
@@ -36,6 +38,8 @@
   --input-bg: #1e1f22;
   --shadow: 0 12px 40px rgb(0 0 0 / 0.5);
   --scrollbar: rgb(255 255 255 / 0.2);
+  --code-bg: #15181d;
+  --code-border: #2b3038;
 }
 
 /* ------------------------------------------------------------------ layout */
@@ -217,13 +221,13 @@ body {
 
 /*
  * The text column. Vditor sets an inline padding on this element; the setting-driven
- * --content-width wins here. Percentages in padding are relative to the parent's width.
+ * --side-padding (from the side margins setting) wins here.
  */
 .pane .vditor-ir pre.vditor-reset,
 .pane textarea.vditor-sv {
   box-sizing: border-box;
   min-height: calc(100vh - var(--tabbar-height));
-  padding: 28px max(40px, calc((100% - var(--content-width)) / 2)) 35vh !important;
+  padding: 28px var(--side-padding) 35vh !important;
   background: transparent !important;
   color: var(--fg);
   font-size: var(--font-size);
@@ -239,6 +243,222 @@ body {
 .pane .vditor-reset .vditor-ir__marker--pre code,
 .pane textarea.vditor-sv {
   font-family: var(--code-font) !important;
+}
+
+/*
+ * While the cursor is in a code block, Vditor shows the editable source *and* a highlighted copy
+ * below it. Show only the source; the highlighted version returns when the cursor leaves.
+ * Diagram blocks (mermaid, flowchart, …) render as SVG, not <code>, so they keep their live preview.
+ */
+.pane .vditor-ir__node--expand[data-type='code-block'] > .vditor-ir__preview:has(> code) {
+  display: none;
+}
+
+/*
+ * Code blocks: the same box whether the cursor is in it (editable source) or not (highlighted copy),
+ * a bit more visible than Vditor's near-white default. The block being edited gets an accent border.
+ */
+.pane .vditor-ir__preview > code.hljs,
+.pane .vditor-ir__marker--pre > code {
+  border: 1px solid var(--code-border);
+  border-radius: 6px;
+  background: var(--code-bg) !important;
+  padding: 12px 14px !important;
+}
+
+.pane .vditor-ir__node--expand .vditor-ir__marker--pre > code {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--code-border));
+  color: var(--fg);
+}
+
+/* Syntax colours for the code block being edited (codeHighlight.ts), matching the GitHub themes. */
+::highlight(hl-kw) { color: #d73a49; }
+::highlight(hl-title) { color: #6f42c1; }
+::highlight(hl-const) { color: #005cc5; }
+::highlight(hl-str) { color: #032f62; }
+::highlight(hl-builtin) { color: #e36209; }
+::highlight(hl-comment) { color: #6a737d; }
+::highlight(hl-name) { color: #22863a; }
+::highlight(hl-section) { color: #005cc5; }
+::highlight(hl-bullet) { color: #735c0f; }
+::highlight(hl-add) { color: #22863a; background-color: #f0fff4; }
+::highlight(hl-del) { color: #b31d28; background-color: #ffeef0; }
+
+:root[data-theme='dark'] ::highlight(hl-kw) { color: #ff7b72; }
+:root[data-theme='dark'] ::highlight(hl-title) { color: #d2a8ff; }
+:root[data-theme='dark'] ::highlight(hl-const) { color: #79c0ff; }
+:root[data-theme='dark'] ::highlight(hl-str) { color: #a5d6ff; }
+:root[data-theme='dark'] ::highlight(hl-builtin) { color: #ffa657; }
+:root[data-theme='dark'] ::highlight(hl-comment) { color: #8b949e; }
+:root[data-theme='dark'] ::highlight(hl-name) { color: #7ee787; }
+:root[data-theme='dark'] ::highlight(hl-section) { color: #1f6feb; }
+:root[data-theme='dark'] ::highlight(hl-bullet) { color: #f2cc60; }
+:root[data-theme='dark'] ::highlight(hl-add) { color: #aff5b4; background-color: #033a16; }
+:root[data-theme='dark'] ::highlight(hl-del) { color: #ffdcd7; background-color: #67060c; }
+
+/* Find matches (find.ts). The underline keeps matches visible on backgrounds such as inline code. */
+::highlight(find-match) {
+  background-color: rgb(255 210 0 / 0.4);
+  text-decoration: underline 2px rgb(240 170 0);
+}
+::highlight(find-current) {
+  background-color: rgb(255 140 0 / 0.7);
+  text-decoration: underline 2px rgb(230 110 0);
+}
+:root[data-theme='dark'] ::highlight(find-match) { background-color: rgb(255 210 0 / 0.25); }
+:root[data-theme='dark'] ::highlight(find-current) { background-color: rgb(255 140 0 / 0.55); }
+
+/* ------------------------------------------------------------------ find bar */
+#find-bar {
+  position: absolute;
+  top: 8px;
+  right: 22px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--dialog-bg);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
+}
+
+#find-bar[hidden],
+#find-bar .replace-row {
+  display: none;
+}
+
+#find-bar .find-row,
+#find-bar.with-replace .replace-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+#find-bar input {
+  width: 240px;
+  margin-right: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  outline: none;
+  background: var(--input-bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+#find-bar input:focus {
+  border-color: var(--accent);
+}
+
+#find-bar input.invalid {
+  border-color: #d73a49;
+}
+
+#find-bar button {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+}
+
+#find-bar button:hover {
+  background: var(--chrome-hover);
+  color: var(--fg);
+}
+
+#find-bar button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+#find-bar .replace-row button {
+  border: 1px solid var(--border);
+  padding: 0 10px;
+}
+
+#find-bar .find-count {
+  min-width: 70px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* "Wrap long text in table cells" setting: Vditor keeps every cell on one line by default. */
+.wrap-table-cells .pane .vditor-reset table td,
+.wrap-table-cells .pane .vditor-reset table th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 4em;
+}
+
+/* Table toolbar (tableToolbar.ts): floats just above the table the caret is in. */
+.editor-host {
+  position: relative;
+}
+
+.table-toolbar {
+  position: absolute;
+  z-index: 5;
+  display: none;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--dialog-bg);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.12);
+  user-select: none;
+}
+
+.table-toolbar.visible {
+  display: flex;
+}
+
+.pane .vditor-ir table.has-table-toolbar {
+  margin-top: 44px;
+}
+
+.table-toolbar button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+}
+
+.table-toolbar button:hover {
+  background: var(--chrome-hover);
+  color: var(--fg);
+}
+
+.table-toolbar button:disabled {
+  opacity: 0.3;
+  background: none;
+}
+
+.table-toolbar svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.table-toolbar .sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--border);
 }
 
 /* Source mode: a plain text area that fills the pane and scrolls itself. */

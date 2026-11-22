@@ -10,7 +10,7 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: mdfile: https: http:; media-src 'self' mdfile: https:; font-src 'self' data:; connect-src 'self' ws: http://localhost:*; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
-    <title>Mark</title>
+    <title>Marky</title>
   </head>
   <body>
     <div id="app">
@@ -25,6 +25,12 @@
       blocks; editor.ts keeps a #vditorIconScript marker so Vditor skips that.
     -->
     <script src="./vditor/dist/js/icons/ant.js"></script>
+    <!--
+      Syntax highlighter, loaded up front so the code-block language list is complete from the
+      start. The ids and URLs match what Vditor uses, so it won't load these a second time.
+    -->
+    <script defer id="vditorHljsScript" src="./vditor/dist/js/highlight.js/highlight.min.js?v=11.7.0"></script>
+    <script defer id="vditorHljsThirdScript" src="./vditor/dist/js/highlight.js/third-languages.js?v=1.0.1"></script>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

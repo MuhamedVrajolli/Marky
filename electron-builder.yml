@@ -1,5 +1,5 @@
-appId: local.mark.editor
-productName: Mark
+appId: local.marky.editor
+productName: Marky
 copyright: MIT License
 
 directories:
@@ -16,6 +16,8 @@ files:
 npmRebuild: false
 
 win:
+  # Generated from build/icon.svg with `npm run icon`.
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]
@@ -26,11 +28,11 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Mark
+  shortcutName: Marky
   artifactName: ${productName}-Setup-${version}.${ext}
   deleteAppDataOnUninstall: false
 
-# Registers Mark as an editor for markdown files ("Open with" list; Windows asks once
+# Registers Marky as an editor for markdown files ("Open with" list; Windows asks once
 # before making it the default).
 fileAssociations:
   - ext: [md, markdown]

@@ -1,9 +1,10 @@
 // Tabs: one Vditor instance per tab, kept alive while hidden so undo history,
 // scroll position and cursor survive tab switches.
 import type Vditor from 'vditor'
-import type { Eol, OpenedFile, Settings } from '../../shared/types'
+import type { Eol, OpenedFile, RestoredTab, Settings } from '../../shared/types'
 import { createEditor, setSpellcheck, themeArgs, type EditMode } from './editor'
-import { mergeEdits, normalize } from './fidelity'
+import { mergeEdits, normalize, tidyMarkdown } from './fidelity'
+import { recordUndoStep } from './undo'
 
 const mark = window.mark
 
@@ -35,7 +36,27 @@ interface Tab {
   scrollTop: number
   range: Range | null
   autoSaveTimer?: number
+  /** Name of this tab's backup of unsaved changes ("hot exit"; see writeBackup). */
+  backupId: string
+  /** Whether a backup file currently exists for this tab. */
+  hasBackup: boolean
+  backupTimer?: number
 }
+
+/** How a tab is recreated from the previous session. */
+interface RestoreOptions {
+  path: string | null
+  /** Text to show (the unsaved changes that were kept). */
+  content: string
+  eol: Eol
+  bom: boolean
+  /** mtime of the disk version the kept changes were based on. */
+  diskMtimeMs: number
+  untitledIndex: number
+  backupId: string
+}
+
+const newBackupId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
 const basename = (p: string): string => p.split(/[\\/]/).pop() || p
 const dirname = (p: string): string => p.replace(/[\\/][^\\/]*$/, '')
@@ -62,6 +83,28 @@ export class TabManager {
     this.scheduleSessionSave()
   }
 
+  /** Recreate the tabs of the previous session, including unsaved changes that were kept. */
+  restore(list: RestoredTab[], activeIndex: number): void {
+    const created = list.map((r) =>
+      r.backup
+        ? this.createTab(r.file, {
+            path: r.path,
+            content: r.backup.content,
+            eol: r.file?.eol ?? r.backup.eol,
+            bom: r.file?.bom ?? r.backup.bom,
+            // If the file changed on disk after the changes were kept, the external-change check
+            // asks which version to keep (because this is older than the file's mtime).
+            diskMtimeMs: r.backup.diskMtimeMs ?? r.file?.mtimeMs ?? 0,
+            untitledIndex: r.untitledIndex,
+            backupId: r.backupId
+          })
+        : this.createTab(r.file)
+    )
+    if (!created.length) return this.newTab()
+    this.activate(created[Math.min(Math.max(0, activeIndex), created.length - 1)])
+    this.scheduleSessionSave()
+  }
+
   /** Open documents (focusing any that are already open) and activate one of them. */
   openFiles(files: OpenedFile[], activateIndex = files.length - 1): void {
     if (!files.length) return
@@ -85,7 +128,7 @@ export class TabManager {
     return !tab.path && !tab.dirty && this.valueOf(tab).trim() === ''
   }
 
-  private createTab(file: OpenedFile | null): Tab {
+  private createTab(file: OpenedFile | null, restore?: RestoreOptions): Tab {
     const pane = document.createElement('div')
     pane.className = 'pane'
     pane.hidden = true
@@ -100,27 +143,31 @@ export class TabManager {
       '<span class="dot">●</span><span class="x">✕</span></button>'
     this.tabbar.append(tabEl)
 
+    const disk = file?.content ?? ''
+    const path = restore ? restore.path : (file?.path ?? null)
     const tab: Tab = {
       id: this.nextId++,
-      path: file?.path ?? null,
-      untitledIndex: file ? 0 : this.nextUntitledIndex(),
-      eol: file?.eol ?? '\n',
-      bom: file?.bom ?? false,
-      mtimeMs: file?.mtimeMs ?? 0,
+      path,
+      untitledIndex: path ? 0 : restore?.untitledIndex || this.nextUntitledIndex(),
+      eol: restore?.eol ?? file?.eol ?? '\n',
+      bom: restore?.bom ?? file?.bom ?? false,
+      mtimeMs: restore ? restore.diskMtimeMs : (file?.mtimeMs ?? 0),
       mode: 'ir',
       editor: null as unknown as Vditor,
       host: null as unknown as HTMLElement,
       ready: false,
       darkAtMount: this.dark,
-      initialValue: file?.content ?? '',
-      disk: file?.content ?? '',
+      initialValue: restore?.content ?? disk,
+      disk,
       base: null,
-      dirty: false,
+      dirty: !!restore && restore.content !== disk,
       saving: false,
       pane,
       tabEl,
       scrollTop: 0,
-      range: null
+      range: null,
+      backupId: restore?.backupId || newBackupId(),
+      hasBackup: !!restore
     }
     this.tabs.push(tab)
 
@@ -187,7 +234,12 @@ export class TabManager {
           if (tab.darkAtMount !== this.dark) editor.setTheme(...themeArgs(this.dark))
           setSpellcheck(host, this.settings.spellcheck)
           this.updateDirty(tab)
-          if (tab === this.active) this.focusEditor(tab)
+          if (tab === this.active) {
+            this.focusEditor(tab)
+            this.onActiveChange()
+          }
+          // Restored tabs: the file may have changed on disk while Marky was closed.
+          if (tab.path && tab.hasBackup) void this.checkExternalChanges([tab])
         },
         onInput: () => this.onInput(tab),
         onLinkClick: (href) => void this.followLink(tab, href)
@@ -212,11 +264,12 @@ export class TabManager {
     if (editorValue === tab.base) return { text: tab.disk, editorValue }
     const merged = mergeEdits(tab.editor, tab.disk, tab.base, editorValue)
     if (merged === null) console.info('[fidelity] could not map edits onto the original; saving editor output')
-    return { text: merged ?? editorValue, editorValue }
+    return { text: merged ?? tidyMarkdown(editorValue), editorValue }
   }
 
   private onInput(tab: Tab): void {
     this.updateDirty(tab)
+    this.scheduleBackup(tab)
     if (this.settings.autoSave && tab.path) {
       clearTimeout(tab.autoSaveTimer)
       tab.autoSaveTimer = window.setTimeout(() => {
@@ -253,7 +306,7 @@ export class TabManager {
   private updateWindowTitle(): void {
     const t = this.active
     // Electron mirrors document.title into the window title.
-    document.title = t ? `${this.titleOf(t)}${t.dirty ? ' •' : ''} — Mark` : 'Mark'
+    document.title = t ? `${this.titleOf(t)}${t.dirty ? ' •' : ''} — Marky` : 'Marky'
   }
 
   // ---------------------------------------------------------------- switching
@@ -276,6 +329,7 @@ export class TabManager {
     this.updateWindowTitle()
     this.focusEditor(tab)
     this.scheduleSessionSave()
+    this.onActiveChange()
     void this.checkExternalChanges([tab])
   }
 
@@ -297,6 +351,30 @@ export class TabManager {
     return this.active?.ready ? this.active.editor : null
   }
 
+  /** Called when the active tab, or its editor, changes (find & replace follows it). */
+  onActiveChange: () => void = () => {}
+
+  /** The active tab's editing surface (for find & replace). */
+  activeView(): { mode: EditMode; root: HTMLElement; pane: HTMLElement; afterEdit(): void } | null {
+    const t = this.active
+    if (!t?.ready) return null
+    const root = t.host.querySelector<HTMLElement>(t.mode === 'sv' ? 'textarea.vditor-sv' : '.vditor-ir > .vditor-reset')
+    if (!root) return null
+    const afterEdit = (): void => {
+      // Text changed directly in the editor: add an undo step and update unsaved state/backup.
+      recordUndoStep(t.editor)
+      this.onInput(t)
+    }
+    return { mode: t.mode, root, pane: t.pane, afterEdit }
+  }
+
+  /** Re-check the active tab's unsaved state right away (e.g. after undo/redo). */
+  refreshDirty(): void {
+    if (!this.active) return
+    this.updateDirty(this.active)
+    this.scheduleBackup(this.active)
+  }
+
   cycle(step: 1 | -1): void {
     if (this.tabs.length < 2 || !this.active) return
     const i = this.tabs.indexOf(this.active)
@@ -309,7 +387,9 @@ export class TabManager {
   async save(tab = this.active, opts: { quiet?: boolean } = {}): Promise<boolean> {
     if (!tab) return false
     if (!tab.path) return this.saveAs(tab)
-    // Nothing to write for an unchanged file.
+    // Nothing to write for an unchanged file. (Re-check now: the unsaved flag is only refreshed
+    // when Vditor reports an edit, which lags behind typing and undo by ~0.8 s.)
+    this.updateDirty(tab)
     if (!tab.dirty) return true
     const { text, editorValue } = this.materialize(tab)
     tab.saving = true
@@ -332,6 +412,7 @@ export class TabManager {
     else tab.initialValue = text
     this.updateDirty(tab)
     if (!tab.ready) this.setDirty(tab, false)
+    void this.writeBackup(tab) // deletes it now that the tab is saved (or refreshes it if not)
   }
 
   async saveAs(tab = this.active): Promise<boolean> {
@@ -395,6 +476,7 @@ export class TabManager {
     const i = this.tabs.indexOf(tab)
     if (i < 0) return
     clearTimeout(tab.autoSaveTimer)
+    void this.dropBackup(tab)
     try {
       tab.editor.destroy()
     } catch {
@@ -502,6 +584,7 @@ export class TabManager {
           })
           if (choice !== 0) {
             tab.mtimeMs = mtime
+            this.scheduleBackup(tab)
             continue
           }
         }
@@ -525,6 +608,55 @@ export class TabManager {
     tab.base = tab.editor.getValue()
     this.setDirty(tab, false)
     tab.pane.scrollTop = scroll
+    void this.dropBackup(tab)
+  }
+
+  // ---------------------------------------------------------------- unsaved changes ("hot exit")
+
+  /** Keep a copy of a tab's unsaved changes shortly after edits (also protects against crashes). */
+  private scheduleBackup(tab: Tab): void {
+    if (!this.settings.hotExit) return
+    clearTimeout(tab.backupTimer)
+    tab.backupTimer = window.setTimeout(() => void this.writeBackup(tab), 1500)
+  }
+
+  /** Write the tab's unsaved changes to its backup, or delete the backup if there are none. */
+  private async writeBackup(tab: Tab): Promise<void> {
+    clearTimeout(tab.backupTimer)
+    if (!this.tabs.includes(tab)) return
+    this.updateDirty(tab)
+    if (!tab.dirty || !this.settings.hotExit) return this.dropBackup(tab)
+    const { text } = this.materialize(tab)
+    await mark.writeBackup(tab.backupId, {
+      content: text,
+      eol: tab.eol,
+      bom: tab.bom,
+      diskMtimeMs: tab.path ? tab.mtimeMs : null
+    })
+    if (!tab.hasBackup) {
+      tab.hasBackup = true
+      this.scheduleSessionSave()
+    }
+  }
+
+  private async dropBackup(tab: Tab): Promise<void> {
+    clearTimeout(tab.backupTimer)
+    if (!tab.hasBackup) return
+    tab.hasBackup = false
+    this.scheduleSessionSave()
+    await mark.deleteBackup(tab.backupId)
+  }
+
+  /** Window closing with hot exit on: keep every tab's unsaved changes for next time. */
+  async keepAllForNextTime(): Promise<void> {
+    await Promise.all(this.tabs.map((t) => this.writeBackup(t)))
+    this.saveSessionNow()
+  }
+
+  /** Window closing with hot exit off (after the save prompt): no unsaved changes are kept. */
+  async discardBackups(): Promise<void> {
+    await Promise.all(this.tabs.map((t) => this.dropBackup(t)))
+    this.saveSessionNow()
   }
 
   // ---------------------------------------------------------------- session
@@ -536,10 +668,9 @@ export class TabManager {
 
   saveSessionNow(): void {
     clearTimeout(this.sessionTimer)
-    const withPath = this.tabs.filter((t) => t.path)
     mark.saveSession({
-      files: withPath.map((t) => t.path!),
-      active: Math.max(0, this.active ? withPath.indexOf(this.active) : 0)
+      tabs: this.tabs.map((t) => ({ path: t.path, backupId: t.hasBackup ? t.backupId : '', untitledIndex: t.untitledIndex })),
+      active: Math.max(0, this.active ? this.tabs.indexOf(this.active) : 0)
     })
   }
 

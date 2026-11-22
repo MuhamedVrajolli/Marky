@@ -12,7 +12,12 @@ const FONT_STACKS = {
 /** Push settings into CSS custom properties used by styles.css. */
 export function applySettingsToDom(s: Settings): void {
   const root = document.documentElement.style
-  root.setProperty('--content-width', s.fullWidth ? '100%' : `${s.contentWidth}px`)
+  // Horizontal padding of the text column. Percentages in padding are relative to the editor width.
+  root.setProperty(
+    '--side-padding',
+    s.widthMode === 'percent' ? `max(32px, ${s.sideMargin}%)` : `max(40px, calc((100% - ${s.contentWidth}px) / 2))`
+  )
+  document.documentElement.classList.toggle('wrap-table-cells', s.wrapTableCells)
   root.setProperty('--font-size', `${s.fontSize}px`)
   root.setProperty('--line-height', String(s.lineHeight))
   root.setProperty(
@@ -38,12 +43,23 @@ const TEMPLATE = `
         <option value="dark">Dark</option>
       </select>
     </label>
-    <label class="row"><span>Text column width <small>(side margins)</small></span>
+    <label class="row"><span>Side margins</span>
+      <select name="widthMode">
+        <option value="fixed">Fixed text width (px)</option>
+        <option value="percent">Percentage of window (%)</option>
+      </select>
+    </label>
+    <label class="row" data-when="fixed"><span>Text width</span>
       <span class="ctl"><input type="range" name="contentWidth"
         min="${LIMITS.contentWidth.min}" max="${LIMITS.contentWidth.max}" step="${LIMITS.contentWidth.step}">
         <output data-for="contentWidth"></output></span>
     </label>
-    <label class="row"><span>Use full window width</span><input type="checkbox" name="fullWidth"></label>
+    <label class="row" data-when="percent"><span>Margin on each side <small>(0% = full width)</small></span>
+      <span class="ctl"><input type="range" name="sideMargin"
+        min="${LIMITS.sideMargin.min}" max="${LIMITS.sideMargin.max}" step="${LIMITS.sideMargin.step}">
+        <output data-for="sideMargin"></output></span>
+    </label>
+    <label class="row"><span>Wrap long text in table cells</span><input type="checkbox" name="wrapTableCells"></label>
     <label class="row"><span>Font</span>
       <select name="fontFamily">
         <option value="sans">Sans-serif (system)</option>
@@ -79,7 +95,9 @@ const TEMPLATE = `
 
   <section>
     <h3>Startup</h3>
-    <label class="row"><span>Reopen the files from last time</span><input type="checkbox" name="restoreTabs"></label>
+    <label class="row"><span>Keep tabs and unsaved changes when closing <small>(like Sublime Text)</small></span>
+      <input type="checkbox" name="hotExit"></label>
+    <label class="row" data-when="no-hot-exit"><span>Reopen the files from last time</span><input type="checkbox" name="restoreTabs"></label>
   </section>
 
   <footer>
@@ -144,10 +162,16 @@ export class SettingsDialog {
       if (o) o.value = text
     }
     out('contentWidth', `${s.contentWidth}px`)
+    out('sideMargin', `${s.sideMargin}%`)
     out('fontSize', `${s.fontSize}px`)
     out('lineHeight', s.lineHeight.toFixed(2))
-    this.field('contentWidth').disabled = s.fullWidth
-    this.form.querySelector<HTMLElement>('[data-when="custom-font"]')!.hidden = s.fontFamily !== 'custom'
+    const show = (when: string, visible: boolean): void => {
+      this.form.querySelector<HTMLElement>(`[data-when="${when}"]`)!.hidden = !visible
+    }
+    show('fixed', s.widthMode === 'fixed')
+    show('percent', s.widthMode === 'percent')
+    show('custom-font', s.fontFamily === 'custom')
+    show('no-hot-exit', !s.hotExit) // keeping tabs on close already reopens them
   }
 
   private onInput(el: HTMLInputElement | HTMLSelectElement): void {

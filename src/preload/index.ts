@@ -19,6 +19,8 @@ const api: MarkApi = {
   confirm: (opts) => ipcRenderer.invoke('dialog:confirm', opts),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
   saveSession: (session) => ipcRenderer.send('session:save', session),
+  writeBackup: (id, backup) => ipcRenderer.invoke('backup:write', id, backup),
+  deleteBackup: (id) => ipcRenderer.invoke('backup:delete', id),
   closeConfirmed: () => ipcRenderer.send('window:closeConfirmed'),
   openExternal: (url) => ipcRenderer.send('shell:openExternal', url),
   zoom: (direction) => webFrame.setZoomLevel(direction === 0 ? 0 : webFrame.getZoomLevel() + direction * 0.5),
