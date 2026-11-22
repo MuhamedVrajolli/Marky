@@ -255,6 +255,15 @@ body {
 }
 
 /*
+ * HTML blocks (<p align="center">…</p>, <div>, …) render inside a <pre>, so they came out in a
+ * monospace font with every line break kept. Render them like ordinary HTML.
+ */
+.pane .vditor-ir__node[data-type='html-block'] > .vditor-ir__preview {
+  font-family: inherit;
+  white-space: normal;
+}
+
+/*
  * Code blocks: the same box whether the cursor is in it (editable source) or not (highlighted copy),
  * a bit more visible than Vditor's near-white default. The block being edited gets an accent border.
  */

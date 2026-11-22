@@ -1,6 +1,7 @@
 // Thin wrapper around Vditor: one instance per tab.
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
+import { attachHtmlImages, fileBaseUrl } from './images'
 import { attachTableToolbar } from './tableToolbar'
 import { recordUndoStep, unrecordedEdits } from './undo'
 
@@ -55,13 +56,6 @@ const TOOLBAR: Array<string | IMenuItem> = [
   'undo', // Ctrl+Z
   'redo' // Ctrl+Y
 ]
-
-/** URL prefix that serves files next to `filePath` through the mdfile:// protocol. */
-export function fileBaseUrl(filePath: string | null): string {
-  if (!filePath) return ''
-  const dir = filePath.replace(/[\\/][^\\/]*$/, '')
-  return `mdfile://local/${dir.split(/[\\/]/).map(encodeURIComponent).join('/')}/`
-}
 
 export const themeArgs = (dark: boolean) =>
   [dark ? 'dark' : 'classic', dark ? 'dark' : 'light', dark ? 'github-dark' : 'github'] as const
@@ -209,6 +203,8 @@ export function createEditor(container: HTMLElement, cfg: EditorConfig, hooks: E
   container.addEventListener('keydown', (e) => {
     if (e.defaultPrevented && !/^(Arrow|Page|Home|End|Escape)/.test(e.key)) unrecordedEdits.add(editor)
   })
+
+  attachHtmlImages(container, cfg.filePath)
 
   const editor: Vditor = new Vditor(container, {
     mode: cfg.mode,
