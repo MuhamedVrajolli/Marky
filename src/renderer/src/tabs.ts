@@ -242,7 +242,8 @@ export class TabManager {
           if (tab.path && tab.hasBackup) void this.checkExternalChanges([tab])
         },
         onInput: () => this.onInput(tab),
-        onLinkClick: (href) => void this.followLink(tab, href)
+        onLinkClick: (href) => void this.followLink(tab, href),
+        onLinkMenu: (link) => mark.showLinkMenu(link, !(getSelection()?.isCollapsed ?? true))
       }
     )
     tab.editor = editor
@@ -529,6 +530,11 @@ export class TabManager {
     // Source mode shows the real file text (plus unsaved edits), not Lute's re-serialization.
     const value = tab.mode === 'ir' ? this.materialize(tab).text : tab.editor.getValue()
     this.mountEditor(tab, value, tab.mode === 'ir' ? 'sv' : 'ir')
+  }
+
+  /** Opens a link from the active document ("Open Link" in a link's context menu). */
+  openLink(href: string): void {
+    if (this.active) void this.followLink(this.active, href)
   }
 
   private async followLink(tab: Tab, href: string): Promise<void> {

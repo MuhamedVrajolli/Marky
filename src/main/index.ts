@@ -1,6 +1,8 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
+  ClipboardItem,
   dialog,
   ipcMain,
   Menu,
@@ -14,7 +16,17 @@ import {
 } from 'electron'
 import { extname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { ConfirmOptions, OpenedFile, RestoredTab, SessionTab, Settings, Startup, TabBackup, TabsSession } from '../shared/types'
+import type {
+  ConfirmOptions,
+  LinkInfo,
+  OpenedFile,
+  RestoredTab,
+  SessionTab,
+  Settings,
+  Startup,
+  TabBackup,
+  TabsSession
+} from '../shared/types'
 import { allowPath, isFile, isKnown, pathsFromArgv, readDoc, readDocs, registerFileHandlers } from './files'
 import { buildMenu } from './menu'
 import {
@@ -148,6 +160,33 @@ function start(): void {
     if (typeof url === 'string' && /^(https?|mailto):/i.test(url)) void shell.openExternal(url)
   })
 
+  // Right-click on a link: the renderer asks for this menu instead of the default one.
+  ipcMain.on('menu:link', (e, link: LinkInfo, hasSelection: boolean) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (!win || typeof link?.href !== 'string' || !link.href) return
+    const href = link.href
+    const text = String(link.text ?? '') || href
+    const markdown = String(link.markdown ?? '') || `[${text}](${href})`
+    Menu.buildFromTemplate([
+      // Same as Ctrl+click. Links to headings (#...) aren't supported.
+      { label: 'Open Link', enabled: !href.startsWith('#'), click: () => e.sender.send('link:open', href) },
+      { label: 'Copy Link', click: () => void clipboard.writeText(href) },
+      {
+        // Markdown for plain-text apps, and a clickable link for apps that paste formatted text.
+        label: 'Copy Link with Formatting',
+        click: () =>
+          void clipboard.write([
+            new ClipboardItem({
+              'text/plain': markdown,
+              'text/html': `<a href="${escapeHtml(href)}">${escapeHtml(text)}</a>`
+            })
+          ])
+      },
+      { type: 'separator' },
+      ...editItems(!!hasSelection, !!hasSelection, true)
+    ]).popup({ window: win })
+  })
+
   app.whenReady().then(() => {
     protocol.handle('mdfile', (req) => {
       let p: string
@@ -168,6 +207,20 @@ function start(): void {
     mainWindow = createWindow()
   })
 }
+
+/** Cut, Copy, Paste and Select All, for context menus in editable text. */
+function editItems(canCut: boolean, canCopy: boolean, canPaste: boolean): MenuItemConstructorOptions[] {
+  return [
+    { role: 'cut', enabled: canCut },
+    { role: 'copy', enabled: canCopy },
+    { role: 'paste', enabled: canPaste },
+    { type: 'separator' },
+    { role: 'selectAll' }
+  ]
+}
+
+const escapeHtml = (s: string): string =>
+  s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 
 function applySettings(s: Settings): void {
   nativeTheme.themeSource = s.theme
@@ -237,13 +290,7 @@ function createWindow(): BrowserWindow {
       items.push({ type: 'separator' })
     }
     if (params.isEditable) {
-      items.push(
-        { role: 'cut', enabled: params.editFlags.canCut },
-        { role: 'copy', enabled: params.editFlags.canCopy },
-        { role: 'paste', enabled: params.editFlags.canPaste },
-        { type: 'separator' },
-        { role: 'selectAll' }
-      )
+      items.push(...editItems(params.editFlags.canCut, params.editFlags.canCopy, params.editFlags.canPaste))
     } else if (params.selectionText) {
       items.push({ role: 'copy' })
     }

@@ -81,6 +81,7 @@ To open `.md` files with Marky by double-clicking them, right-click a `.md` file
 | Find / replace | `Ctrl+F` / `Ctrl+H` (or `Ctrl+R`) |
 | Next / previous match | `Enter` / `Shift+Enter` in the find box, or `F3` / `Shift+F3` |
 | Open a link | `Ctrl+click` (links to other `.md` files open in a new tab) |
+| Open or copy a link | Right-click the link |
 | Zoom in / out / reset | `Ctrl+Shift+=` / `Ctrl+Shift+-` / `Ctrl+Shift+0` |
 | Bold, italic, strike, link, inline code | `Ctrl+B`, `Ctrl+I`, `Ctrl+D`, `Ctrl+K`, `Ctrl+G` |
 | Heading level / bigger / smaller | `Ctrl+Alt+1…6`, `Ctrl+=`, `Ctrl+-` |
@@ -119,6 +120,19 @@ columns, aligns the current column, or deletes the table.
 options for match case, whole word and regular expressions, and `$1` works in the replacement.
 `Ctrl+H` adds a replace box: `Enter` replaces the current match, and **All** replaces every match
 as a single undo step. `Esc` closes the box and leaves the cursor on the match.
+
+### Links
+
+Click a link to edit it: its markdown, such as `[Marky](https://github.com/MuhamedVrajolli/Marky)`,
+is revealed like any other formatting. `Ctrl+click` opens a link: web links open in your browser,
+and links to other markdown files open in a new tab.
+
+Right-click a link for these options:
+
+- **Open Link**, the same as `Ctrl+click`.
+- **Copy Link** copies the address.
+- **Copy Link with Formatting** copies the link as markdown (`[text](address)`) for plain-text
+  apps, and as a clickable link for apps that paste formatted text, such as Word or email.
 
 ### Images
 

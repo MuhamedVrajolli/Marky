@@ -180,6 +180,16 @@ export interface ConfirmOptions {
   cancelId?: number
 }
 
+/** A link in a document (see `MarkApi.showLinkMenu`). */
+export interface LinkInfo {
+  /** Destination as written in the document (for reference links, from their definition). */
+  href: string
+  /** Visible text: the link text without formatting, or an image's alt text. */
+  text: string
+  /** The link as markdown, e.g. `[text](href)`. */
+  markdown: string
+}
+
 /** The API exposed on `window.mark` by the preload script. */
 export interface MarkApi {
   getStartup(): Promise<Startup>
@@ -200,8 +210,11 @@ export interface MarkApi {
   deleteBackup(id: string): Promise<void>
   closeConfirmed(): void
   openExternal(url: string): void
+  /** Context menu for a link (open, copy). Choosing "Open Link" calls the `onOpenLink` callback. */
+  showLinkMenu(link: LinkInfo, hasSelection: boolean): void
   zoom(direction: 1 | -1 | 0): void
   onMenu(cb: (action: MenuAction) => void): void
+  onOpenLink(cb: (href: string) => void): void
   onOpenFiles(cb: (files: OpenedFile[]) => void): void
   onRequestClose(cb: () => void): void
   onThemeChange(cb: (dark: boolean) => void): void

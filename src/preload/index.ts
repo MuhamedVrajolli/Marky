@@ -23,9 +23,13 @@ const api: MarkApi = {
   deleteBackup: (id) => ipcRenderer.invoke('backup:delete', id),
   closeConfirmed: () => ipcRenderer.send('window:closeConfirmed'),
   openExternal: (url) => ipcRenderer.send('shell:openExternal', url),
+  showLinkMenu: (link, hasSelection) => ipcRenderer.send('menu:link', link, hasSelection),
   zoom: (direction) => webFrame.setZoomLevel(direction === 0 ? 0 : webFrame.getZoomLevel() + direction * 0.5),
   onMenu: (cb) => {
     ipcRenderer.on('menu', (_e, action: MenuAction) => cb(action))
+  },
+  onOpenLink: (cb) => {
+    ipcRenderer.on('link:open', (_e, href: string) => cb(href))
   },
   onOpenFiles: (cb) => {
     ipcRenderer.on('files:open', (_e, files: OpenedFile[]) => cb(files))

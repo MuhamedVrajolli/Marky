@@ -1,7 +1,9 @@
 // Thin wrapper around Vditor: one instance per tab.
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
+import type { LinkInfo } from '../../shared/types'
 import { attachHtmlImages, fileBaseUrl } from './images'
+import { linkAt, revealClickedLink } from './links'
 import { attachTableToolbar } from './tableToolbar'
 import { recordUndoStep, unrecordedEdits } from './undo'
 
@@ -14,6 +16,8 @@ export interface EditorHooks {
   onInput(): void
   /** Ctrl+click on a link. `href` is the raw link destination as written in the markdown. */
   onLinkClick(href: string): void
+  /** Right-click on a link. */
+  onLinkMenu(link: LinkInfo): void
 }
 
 export interface EditorConfig {
@@ -87,20 +91,25 @@ export function createEditor(container: HTMLElement, cfg: EditorConfig, hooks: E
         return
       }
 
-      // Ctrl+click opens links (like Typora); a plain click just places the cursor.
+      // Ctrl+click opens links (like Typora); a plain click reveals the link's markdown.
       if (!(e.ctrlKey || e.metaKey)) return
-      const node = target.closest('[data-type="a"]')
-      const href =
-        node?.querySelector(':scope > .vditor-ir__marker--link')?.textContent ??
-        target.closest('a')?.getAttribute('href') ??
-        ''
-      if (!href.trim()) return
+      const link = linkAt(target)
+      if (!link) return
       e.preventDefault()
       e.stopPropagation()
-      hooks.onLinkClick(href.trim())
+      hooks.onLinkClick(link.href)
     },
     true
   )
+
+  // Right-click on a link: a menu to open or copy it. Anywhere else, the default menu
+  // (spelling suggestions, cut/copy/paste).
+  container.addEventListener('contextmenu', (e) => {
+    const link = linkAt(e.target as Element)
+    if (!link) return
+    e.preventDefault()
+    hooks.onLinkMenu(link)
+  })
 
   // Tab: never let focus leave the editor. (By default Vditor only handles Tab in lists and
   // tables; anywhere else the browser moved focus to the next button and, after a few presses,
@@ -226,7 +235,7 @@ export function createEditor(container: HTMLElement, cfg: EditorConfig, hooks: E
       markdown: { linkBase: fileBaseUrl(cfg.filePath), sanitize: true }
     },
     hint: { emojiPath: `${ASSETS}/dist/images/emoji` },
-    link: { isOpen: false, click: () => {} },
+    link: { isOpen: false, click: () => revealClickedLink(container) },
     after: () => {
       tameHints(editor)
       recordInitialUndoState(editor)

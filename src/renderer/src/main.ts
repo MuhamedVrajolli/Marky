@@ -85,6 +85,7 @@ async function boot(): Promise<void> {
 
   document.getElementById('new-tab')!.addEventListener('click', () => tabs.newTab())
   mark.onMenu((action) => void run(action))
+  mark.onOpenLink((href) => tabs.openLink(href))
   mark.onOpenFiles((files) => tabs.openFiles(files))
   mark.onRequestClose(async () => {
     if (settings.hotExit) {
