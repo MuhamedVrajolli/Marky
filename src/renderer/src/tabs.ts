@@ -2,7 +2,7 @@
 // scroll position and cursor survive tab switches.
 import type Vditor from 'vditor'
 import type { Eol, OpenedFile, RestoredTab, Settings } from '../../shared/types'
-import { createEditor, setSpellcheck, themeArgs, type EditMode } from './editor'
+import { createEditor, setEditorTheme, setSpellcheck, type EditMode } from './editor'
 import { mergeEdits, normalize, tidyMarkdown } from './fidelity'
 import { recordUndoStep } from './undo'
 
@@ -231,7 +231,7 @@ export class TabManager {
           if (mode === 'sv') tab.base = tab.disk
           else if (value === tab.disk) tab.base = editor.getValue()
           else tab.base = normalize(editor, tab.disk) ?? editor.getValue()
-          if (tab.darkAtMount !== this.dark) editor.setTheme(...themeArgs(this.dark))
+          if (tab.darkAtMount !== this.dark) setEditorTheme(editor, host, this.dark)
           setSpellcheck(host, this.settings.spellcheck)
           this.updateDirty(tab)
           if (tab === this.active) {
@@ -561,7 +561,7 @@ export class TabManager {
     this.dark = dark
     for (const t of this.tabs) {
       if (!t.ready) continue
-      t.editor.setTheme(...themeArgs(dark))
+      setEditorTheme(t.editor, t.host, dark)
       t.darkAtMount = dark
     }
   }

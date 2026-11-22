@@ -264,6 +264,53 @@ body {
 }
 
 /*
+ * Vditor keeps an empty line above and below every code block, which left large gaps around
+ * Mermaid diagrams. Collapse those lines while the diagram isn't being edited.
+ */
+.pane .vditor-ir__node[data-type='code-block']:not(.vditor-ir__node--expand):has(> .vditor-ir__preview > .language-mermaid) {
+  line-height: 0;
+}
+
+.pane .vditor-ir__node[data-type='code-block'] > .vditor-ir__preview:has(> .language-mermaid) {
+  line-height: var(--line-height);
+}
+
+/*
+ * A Mermaid diagram with a syntax error: a compact message instead of Mermaid's large bomb
+ * picture (Vditor puts the picture, a <br> and the message in the preview).
+ */
+.pane .vditor-ir__preview > .language-mermaid > svg[aria-roledescription='error'],
+.pane .vditor-ir__preview > .language-mermaid > svg[aria-roledescription='error'] + br {
+  display: none;
+}
+
+.pane .vditor-ir__preview > .language-mermaid > svg[aria-roledescription='error'] ~ div {
+  --error: #cf222e;
+  border-left: 3px solid var(--error);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  padding: 8px 12px;
+  color: var(--fg);
+  font-family: var(--code-font);
+  font-size: 0.8em;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+:root[data-theme='dark'] .pane .vditor-ir__preview > .language-mermaid > svg[aria-roledescription='error'] ~ div {
+  --error: #f85149;
+}
+
+.pane .vditor-ir__preview > .language-mermaid > svg[aria-roledescription='error'] ~ div::before {
+  content: 'Diagram error';
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--font-family);
+  font-size: 1.15em;
+  font-weight: 600;
+}
+
+/*
  * Code blocks: the same box whether the cursor is in it (editable source) or not (highlighted copy),
  * a bit more visible than Vditor's near-white default. The block being edited gets an accent border.
  */

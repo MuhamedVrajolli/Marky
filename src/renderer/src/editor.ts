@@ -4,6 +4,7 @@ import 'vditor/dist/index.css'
 import type { LinkInfo } from '../../shared/types'
 import { attachHtmlImages, fileBaseUrl } from './images'
 import { linkAt, revealClickedLink } from './links'
+import { rerenderDiagrams } from './mermaid'
 import { attachTableToolbar } from './tableToolbar'
 import { recordUndoStep, unrecordedEdits } from './undo'
 
@@ -63,6 +64,13 @@ const TOOLBAR: Array<string | IMenuItem> = [
 
 export const themeArgs = (dark: boolean) =>
   [dark ? 'dark' : 'classic', dark ? 'dark' : 'light', dark ? 'github-dark' : 'github'] as const
+
+/** Switches an editor between light and dark. */
+export function setEditorTheme(editor: Vditor, container: HTMLElement, dark: boolean): void {
+  const args = themeArgs(dark)
+  editor.setTheme(...args)
+  rerenderDiagrams(container, ASSETS, args[0])
+}
 
 export function createEditor(container: HTMLElement, cfg: EditorConfig, hooks: EditorHooks): Vditor {
   const [theme, contentTheme, codeTheme] = themeArgs(cfg.dark)

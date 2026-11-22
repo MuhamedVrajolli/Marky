@@ -1,6 +1,7 @@
 import './styles.css'
 import type { MenuAction } from '../../shared/types'
 import { installCodeHighlighting, scheduleCodeHighlight } from './codeHighlight'
+import { installMermaidTheme } from './mermaid'
 import { caretInTable, undoStep } from './editor'
 import { FindBar } from './find'
 import { applySettingsToDom, SettingsDialog } from './settings'
@@ -38,6 +39,7 @@ async function boot(): Promise<void> {
   // Keep find results current as the document changes.
   document.getElementById('editors')!.addEventListener('input', () => find.refresh(), true)
   installCodeHighlighting()
+  installMermaidTheme()
 
   if (startup.tabs.length) tabs.restore(startup.tabs, startup.active)
   else tabs.newTab()

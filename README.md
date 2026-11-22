@@ -46,7 +46,8 @@ fully offline.
   resized images).
 - **Find and replace** with match case, whole word and regular expressions.
 - **Light and dark themes** that follow Windows, adjustable text width, fonts and line height.
-- **Math and diagrams** via KaTeX, Mermaid and the other renderers Vditor includes.
+- **Math and diagrams.** KaTeX math and Mermaid diagrams, colored to match the light and dark
+  themes, plus the other renderers Vditor includes.
 - **Windows integration.** An installer, `.md` file association, and single-instance windows:
   opening a file while Marky is running adds a tab to the existing window.
 
