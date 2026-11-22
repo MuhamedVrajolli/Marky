@@ -106,11 +106,21 @@ jobs:
         run: |
           version="$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')").$GITHUB_RUN_NUMBER"
           npm version "$version" --no-git-tag-version
+          echo "VERSION=$version" >> "$GITHUB_ENV"
           echo "Releasing $version"
-      - name: Build and publish
+      - name: Build
+        # electron-builder writes latest.yml (what installed copies check) but doesn't publish:
+        # its uploads race each other when creating the release.
+        run: set -o pipefail; { npm run build && npx electron-builder --win --publish never; } 2>&1 | tee -a ci.log
+      - name: Publish the release
+        # gh uploads everything to a draft first and then publishes it, all in one go.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: set -o pipefail; { npm run build && npx electron-builder --win --publish always; } 2>&1 | tee -a ci.log
+        run: |
+          set -o pipefail
+          gh release create "v$VERSION" \
+            "dist/Marky-Setup-$VERSION.exe" "dist/Marky-Setup-$VERSION.exe.blockmap" dist/latest.yml \
+            --target "$(git rev-parse HEAD)" --title "Marky $VERSION" --generate-notes 2>&1 | tee -a ci.log
       - name: Report the failure
         if: failure()
         run: echo "::error title=Release failed::$(tail -n 60 ci.log | tr -d '\r' | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"

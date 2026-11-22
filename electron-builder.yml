@@ -16,13 +16,12 @@ files:
 
 npmRebuild: false
 
-# Releases for automatic updates (src/main/updater.ts). CI publishes them (.github/workflows/ci.yml);
-# local builds don't.
+# Where installed copies look for updates (src/main/updater.ts). electron-builder only writes the
+# update files (latest.yml, app-update.yml); CI publishes the releases (.github/workflows/ci.yml).
 publish:
   provider: github
   owner: MuhamedVrajolli
   repo: Marky
-  releaseType: release
 
 # Electron features Marky doesn't use, switched off in Marky.exe so it can't be misused as a
 # general-purpose Node.js runtime, and so a modified app.asar won't load.
