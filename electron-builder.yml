@@ -18,6 +18,15 @@ npmRebuild: false
 # No auto-updates. Without this, the GitHub repository in package.json adds an unused app-update.yml.
 publish: null
 
+# Electron features Marky doesn't use, switched off in Marky.exe so it can't be misused as a
+# general-purpose Node.js runtime, and so a modified app.asar won't load.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+
 win:
   # Generated from build/icon.svg with `npm run icon`.
   icon: build/icon.ico

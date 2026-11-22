@@ -114,6 +114,9 @@ function withMarkyTheme(config: Config): Config {
   const font = getComputedStyle(document.documentElement).getPropertyValue('--font-family').trim() || 'sans-serif'
   return {
     ...config,
+    // Vditor asks for "loose", which lets a diagram call JavaScript functions when a node is
+    // clicked. Documents can come from anywhere, so use Mermaid's default, "strict".
+    securityLevel: 'strict',
     theme: 'base', // the only theme Mermaid lets you recolour
     fontFamily: font,
     themeVariables: { ...(config.theme === 'dark' ? DARK : LIGHT), fontFamily: font },
