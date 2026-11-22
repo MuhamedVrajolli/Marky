@@ -1,0 +1,116 @@
+# Keeps Marky up to date without anyone having to think about it:
+#
+# 1. Every change is type-checked and smoke-tested on Windows (tests/smoke.test.mjs).
+# 2. Dependabot's dependency updates (.github/dependabot.yml) are merged once the tests pass,
+#    except Vditor, which Marky relies on internally, so its updates wait for a person.
+# 3. A release is published for every change to the app on main, and for every Electron update.
+#    Installed copies of Marky download it in the background and install it when closed
+#    (src/main/updater.ts).
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', '.github/dependabot.yml']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+      - name: Install
+        run: set -o pipefail; npm ci 2>&1 | tee -a ci.log
+      - name: Type-check
+        run: set -o pipefail; npm run typecheck 2>&1 | tee -a ci.log
+      - name: Smoke tests
+        run: set -o pipefail; npm test 2>&1 | tee -a ci.log
+      - name: Report the failure
+        if: failure()
+        # The end of the output as an annotation, which is readable without signing in.
+        run: echo "::error title=CI failed::$(tail -n 60 ci.log | tr -d '\r' | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+
+  merge-dependabot:
+    needs: test
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release: ${{ steps.merge.outcome == 'success' && steps.check.outputs.release == 'true' }}
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v3
+      - id: check
+        name: Check what was updated
+        env:
+          NAMES: ${{ steps.meta.outputs.dependency-names }}
+        run: |
+          manual=false; release=false
+          for name in $(echo "$NAMES" | tr ',' ' '); do
+            [ "$name" = vditor ] && manual=true
+            # Electron (Chromium security fixes) and the updater are what matter to people
+            # running Marky; build-tool updates go out with the next release.
+            { [ "$name" = electron ] || [ "$name" = electron-updater ]; } && release=true
+          done
+          echo "manual=$manual" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - id: merge
+        name: Merge
+        if: steps.check.outputs.manual == 'false'
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --squash --delete-branch "$PR_URL"
+
+  release:
+    needs: [test, merge-dependabot]
+    if: >-
+      always() && needs.test.result == 'success' &&
+      (github.event_name != 'pull_request' || needs.merge-dependabot.outputs.release == 'true')
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+      - name: Install
+        run: set -o pipefail; npm ci 2>&1 | tee -a ci.log
+      - name: Set the version
+        # x.y from package.json plus this workflow's run number, so every release is newer.
+        run: |
+          version="$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')").$GITHUB_RUN_NUMBER"
+          npm version "$version" --no-git-tag-version
+          echo "Releasing $version"
+      - name: Build and publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: set -o pipefail; { npm run build && npx electron-builder --win --publish always; } 2>&1 | tee -a ci.log
+      - name: Report the failure
+        if: failure()
+        run: echo "::error title=Release failed::$(tail -n 60 ci.log | tr -d '\r' | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"

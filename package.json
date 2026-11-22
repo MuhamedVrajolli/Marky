@@ -23,6 +23,8 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit --composite false -p tsconfig.node.json && tsc --noEmit --composite false -p tsconfig.web.json",
+    "pretest": "npm run build",
+    "test": "node --test tests/",
     "dist:win": "npm run build && electron-builder --win",
     "icon": "electron scripts/make-icon.cjs"
   },
@@ -33,8 +35,12 @@
     "electron": "^45.4.1",
     "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
+    "playwright-core": "^1.65.1",
     "typescript": "^7.0.2",
     "vditor": "4.0.1",
     "vite": "^8.3.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }

@@ -53,20 +53,40 @@ fully offline.
 
 ## Installation
 
-Marky is currently built from source. You need [Node.js](https://nodejs.org/) 22.12 or newer.
+Download `Marky-Setup-<version>.exe` from the
+[latest release](https://github.com/MuhamedVrajolli/Marky/releases/latest) and run it. The
+installer isn't code-signed, so Windows SmartScreen warns the first time you run it
+(**More info** → **Run anyway**). Choose **Only for me** when asked, so updates can install
+without an administrator prompt.
+
+To open `.md` files with Marky by double-clicking them, right-click a `.md` file and choose
+**Open with** → **Choose another app** → **Marky** → **Always**.
+
+To build the installer yourself instead, you need [Node.js](https://nodejs.org/) 22.12 or newer:
 
 ```sh
 git clone https://github.com/MuhamedVrajolli/Marky.git
 cd Marky
 npm install
-npm run dist:win
+npm run dist:win   # creates dist/Marky-Setup-<version>.exe
 ```
 
-Then run `dist/Marky-Setup-<version>.exe`. The installer isn't code-signed, so Windows
-SmartScreen warns the first time you run it (**More info** → **Run anyway**).
+### Updates
 
-To open `.md` files with Marky by double-clicking them, right-click a `.md` file and choose
-**Open with** → **Choose another app** → **Marky** → **Always**.
+Marky updates itself. It checks for a new release shortly after it starts and every few hours,
+downloads it in the background, and installs it when you close Marky, so the next start runs
+the new version. If anything goes wrong, Marky stays on its current version; details are in
+`%APPDATA%\Marky\logs\updater.log`.
+
+Releases come from the repository's [CI workflow](.github/workflows/ci.yml), which keeps the
+dependencies current without manual work:
+
+1. [Dependabot](.github/dependabot.yml) proposes dependency updates every week.
+2. CI type-checks every change and runs the [smoke tests](tests/smoke.test.mjs) on Windows, then
+   merges dependency updates that pass. Vditor updates are the exception and wait for review,
+   because Marky relies on some of its internals.
+3. Every change to the app on `main`, and every Electron update, is published as a release. Keeping
+   Electron current matters most, since it brings Chromium's security fixes.
 
 ## Usage
 
@@ -201,8 +221,9 @@ column-aligned format, while the rest of the file keeps its exact formatting.
 npm install
 npm run dev        # run with hot reload
 npm run typecheck  # type-check the main and renderer code
+npm test           # build, then run the smoke tests against the built app
 npm run build      # build into out/
-npm run dist:win   # build and package the Windows installer into dist/
+npm run dist:win   # build and package the Windows installer into dist/ (not published)
 npm run icon       # regenerate build/icon.ico and icon.png after editing the SVGs
 ```
 
@@ -218,15 +239,29 @@ src/
 ├── renderer/    Tabs, the Vditor editor and its keyboard fixes, images, find and replace,
 │                table toolbar, settings dialog and styles
 └── shared/      Types and settings defaults shared by both sides
+tests/           Smoke tests that drive the built app (Playwright)
 build/           App icon sources (SVG) and generated icons
 scripts/         Asset copying and icon generation
+.github/         CI (tests, dependency updates, releases) and Dependabot settings
 ```
+
+### Security
+
+Documents can come from anywhere, so the page that shows them runs sandboxed, without Node.js,
+under a Content Security Policy that blocks scripts in documents. It can only reach Marky through
+a small API limited to the files you opened. Mermaid runs in its strict mode, the built app may
+only connect to itself, and Electron features Marky doesn't use (running as Node.js, inspector
+flags, loading code from outside `app.asar`) are switched off in `Marky.exe`.
 
 The logo is `build/icon.svg`. `build/icon-small.svg` is a heavier-stroke version used for the
 16–24 px sizes, so the icon stays sharp in the taskbar and Explorer.
 
 Vditor is pinned to an exact version on purpose. Marky relies on some of its internals (the
-markdown engine, icon loading, the code-block copy button), so check those after upgrading.
+markdown engine, icon loading, the code-block copy button, the Mermaid setup), so check those
+after upgrading.
+
+The patch number in `package.json` is set by CI for each release; change the major or minor
+number there for bigger releases.
 
 ## Known limitations
 
@@ -242,7 +277,7 @@ markdown engine, icon loading, the code-block copy button), so check those after
 
 Bug reports and focused pull requests are welcome. Marky intentionally stays small, so please open
 an issue to discuss a new feature before working on it. Before submitting a pull request, run
-`npm run typecheck` and `npm run build`.
+`npm run typecheck` and `npm test`.
 
 ## License
 

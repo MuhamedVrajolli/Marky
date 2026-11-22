@@ -1,0 +1,35 @@
+# Weekly dependency updates. CI tests each one and merges it when the tests pass (Vditor waits
+# for a person); Electron updates are then released to installed copies (see workflows/ci.yml).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # One pull request for all the build tools instead of one per package.
+      tooling:
+        dependency-type: development
+        exclude-patterns: [electron, vditor]
+    ignore:
+      # New major versions of these tend to need code changes, so they're left for a person.
+      # Electron's are taken: only the latest three Electron versions get security fixes.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      - dependency-name: vite
+        update-types: [version-update:semver-major]
+      - dependency-name: electron-vite
+        update-types: [version-update:semver-major]
+      - dependency-name: electron-builder
+        update-types: [version-update:semver-major]
+      - dependency-name: electron-updater
+        update-types: [version-update:semver-major]
+      - dependency-name: playwright-core
+        update-types: [version-update:semver-major]
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

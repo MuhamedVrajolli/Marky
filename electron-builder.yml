@@ -6,7 +6,8 @@ directories:
   output: dist
   buildResources: build
 
-# Everything the app needs is bundled into out/ by electron-vite (including Vditor's assets).
+# The app is bundled into out/ by electron-vite (including Vditor's assets). Runtime
+# dependencies (electron-updater) are added from node_modules by electron-builder.
 files:
   - out/**
   - package.json
@@ -15,8 +16,13 @@ files:
 
 npmRebuild: false
 
-# No auto-updates. Without this, the GitHub repository in package.json adds an unused app-update.yml.
-publish: null
+# Releases for automatic updates (src/main/updater.ts). CI publishes them (.github/workflows/ci.yml);
+# local builds don't.
+publish:
+  provider: github
+  owner: MuhamedVrajolli
+  repo: Marky
+  releaseType: release
 
 # Electron features Marky doesn't use, switched off in Marky.exe so it can't be misused as a
 # general-purpose Node.js runtime, and so a modified app.asar won't load.

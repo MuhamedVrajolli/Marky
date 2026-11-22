@@ -29,6 +29,7 @@ import type {
 } from '../shared/types'
 import { allowPath, isFile, isKnown, pathsFromArgv, readDoc, readDocs, registerFileHandlers } from './files'
 import { buildMenu } from './menu'
+import { startAutoUpdates } from './updater'
 import {
   deleteBackup,
   getSession,
@@ -205,6 +206,7 @@ function start(): void {
     applySettings(getSettings())
     Menu.setApplicationMenu(buildMenu(getWindow))
     mainWindow = createWindow()
+    startAutoUpdates()
   })
 }
 
